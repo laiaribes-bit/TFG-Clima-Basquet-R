@@ -1,0 +1,2229 @@
+---
+title: "EDA"
+author: "Laia Ribes"
+date: "2026-04-01"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+
+entrenadors <- read_excel("entrenadors_v2.xlsx")
+arbitres <- read_excel("arbitres_v2.xlsx")
+auxiliars <- read_excel("auxiliars_v2.xlsx")
+```
+
+```{r}
+cent <- colnames(entrenadors)
+caux <- colnames(auxiliars)
+carb <- colnames(arbitres)
+```
+
+```{r}
+#mirem  variables comunes
+comunes <- intersect(intersect(carb,caux),cent)
+#mirem totes les variables 
+totes <- union(union(carb,caux),cent)
+
+print(comunes)
+```
+
+mirem quines son les variables que son diferents per a les 3 bases
+
+```{r}
+nocomunes <- setdiff(totes, comunes)
+print(nocomunes)
+```
+
+mirem per cada col·lectiu quines son les seves variables uniques
+
+```{r}
+#arbitres
+print("arbitres:")
+print(setdiff(carb, comunes))
+
+#auxiliars
+print("auxiliars:")
+print(setdiff(caux, comunes))
+
+#entrenadors
+print("entrenadors:")
+print(setdiff(cent, comunes))
+```
+
+
+# ANALISI DESCRIPTIU UNIVARIANT
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(psych)   # molt útil per descriptives
+library(skimr)   # resum ràpid
+```
+
+
+#ENTRENADORS
+
+```{r}
+#skim(entrenadors)
+```
+
+
+```{r}
+summary(entrenadors)
+```
+
+
+```{r}
+describe(entrenadors %>% select(where(is.numeric)))
+```
+
+
+
+
+#ARBITRES
+
+```{r}
+#skim(arbitres)
+```
+
+
+```{r}
+summary(arbitres)
+```
+
+
+```{r}
+describe(arbitres %>% select(where(is.numeric)))
+```
+
+
+#AUXILIARS
+
+```{r}
+#skim(auxiliars)
+```
+
+
+```{r}
+summary(auxiliars)
+```
+
+
+```{r}
+describe(auxiliars %>% select(where(is.numeric)))
+```
+
+# id_partits
+
+volem veure quins partits son els partits duplicats de la base de dades de auxiliars.
+
+```{r}
+duplicats <- auxiliars %>%
+  group_by(id_partit) %>%
+  filter(n() > 1)
+
+print(duplicats)
+```
+
+ens quedem amb una sola observacio de cada partit
+
+```{r}
+auxiliars_net <- auxiliars %>%
+  distinct(id_partit, .keep_all = TRUE)
+```
+
+comprovem que s'hagin eliminat correctament i que nomes ens quedi una observacio per a cada id.
+
+```{r}
+table(auxiliars_net$id_partit)
+```
+
+passarem ara a eliminar totes les observacions de les quals no en tinguem la informacio de id_partit, ja que no ens donen cap mena d'informació.
+
+```{r}
+auxiliars_net <- auxiliars_net %>% filter(!is.na(id_partit & id_partit != ""))
+arbitres_net <- arbitres %>% filter(!is.na(id_partit & id_partit != ""))
+entrenadors_net <- entrenadors %>% filter(!is.na(id_partit & id_partit != ""))
+```
+
+ara ens toca comparar que els id_partits encara coincideixin
+
+```{r}
+comuns <- intersect(intersect(entrenadors_net$id_partit, arbitres_net$id_partit), auxiliars_net$id_partit)
+
+print(comuns)
+
+setdiff(arbitres_net$id_partit, auxiliars_net$id_partit)
+setdiff(arbitres_net$id_partit, entrenadors_net$id_partit)
+```
+
+veiem que tenim un total de 317 partits.
+
+
+ens queden 317 observacions per a auxiliars, 634 per a arbitres i 626 per a entrenadors, hem de mirar quins partits son els que tenim problemes per a entrenadors
+
+```{r}
+table(entrenadors_net$id_partit)
+```
+
+
+
+## despres deliminar algunes files, tornem a fer eda
+
+
+```{r}
+#skim(arbitres_net)
+```
+
+```{r}
+#skim(entrenadors_net)
+```
+
+```{r}
+#skim(auxiliars_net)
+```
+
+```{r}
+summary(arbitres_net)
+```
+
+```{r}
+summary(entrenadors_net)
+```
+
+```{r}
+summary(auxiliars_net)
+```
+
+```{r}
+describe(arbitres_net%>% select(where(is.numeric)))
+```
+
+```{r}
+describe(entrenadors_net %>% select(where(is.numeric)))
+```
+
+```{r}
+describe(auxiliars_net %>% select(where(is.numeric)))
+```
+
+
+# variables escales likert
+
+les nostres variables en escales likert son: 
+
+per a arbitres:
+- self_performance
+- self_attitude_towards_teams
+- colleague_attitude_towards_teams
+- auxdesk_attitude_towards_teams
+- staff_attitude_home
+- players_attitude_home
+- supporters_attitude_home
+- staff_attitude_away
+- players_attitude_away
+- supporters_attitude_away
+
+per a auxiliars:
+- self_performance
+- self_attitude_towards_teams
+- referees_towards_teams
+- staff_attitude_home
+- players_attitude_home
+- supporters_attitude_home
+- staff_attitude_away
+- players_attitude_away
+- supporters_attitude_away
+
+per a entrenadors:
+- auxdesk_access
+- auxdesk_attitude_towards_teams
+- auxref_access
+- auxref_criteria
+- auxref_respect
+- auxref_rules
+- mainref_access
+- mainref_criteria
+- mainref_respect
+- mainref_rules
+- rival_supporters_attitude
+- own_players_attitude
+- own_staff_attitude
+- own_supporters_attitude
+- ref_general_assess
+- safety
+
+
+comencem per separar els datasets amb les variables que ens intreressen
+
+```{r}
+vars_likert_arb <- c("self_performance", "self_attitude_towards_teams", "colleague_attitude_towards_teams", "auxdesk_attitude_towards_teams", "staff_attitude_home", "players_attitude_home", "supporters_attitude_home", "staff_attitude_away", "players_attitude_away", "supporters_attitude_away")
+
+vars_likert_aux <- c("self_performance", "self_attitude_towards_teams", "referees_towards_teams", "staff_attitude_home", "players_attitude_home", "supporters_attitude_home", "staff_attitude_away", "players_attitude_away", "supporters_attitude_away")
+
+vars_likert_ent <- c("auxdesk_access", "auxdesk_attitude_towards_teams", "auxref_access", "auxref_criteria", "auxref_respect", "auxref_rules", "mainref_access", "mainref_criteria", "mainref_respect", "mainref_rules", "rival_supporters_attitude", "own_players_attitude", "own_staff_attitude", "own_supporters_attitude", "ref_general_assess", "safety")
+```
+
+creem els nous datasets
+
+```{r}
+likert_arb <- arbitres_net %>% select(all_of(vars_likert_arb))
+
+likert_aux <- auxiliars_net %>% select(all_of(vars_likert_aux))
+
+likert_ent <- entrenadors_net %>% select(all_of(vars_likert_ent))
+```
+
+
+## arbitres
+
+mirem gràficament les dades
+
+```{r}
+library(tidyr) # For tidying the data
+library(dplyr) # For manipulation the data
+library(ggplot2) # For plotting sophisticated graphs
+library(ggstats) # For plotting quick graphs
+library(rio)
+```
+
+
+```{r}
+ordre_logic <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+```
+
+
+```{r}
+likert_arb <- likert_arb %>%
+  mutate(across(everything(), ~ factor(.x, levels = ordre_logic, ordered = TRUE)))
+
+gglikert(likert_arb)
+```
+
+
+
+## auxiliars
+
+```{r}
+likert_aux <- likert_aux %>%
+  mutate(across(everything(), ~ factor(.x, levels = ordre_logic, ordered = TRUE)))
+
+gglikert(likert_aux)
+```
+
+
+
+## entrenadors
+
+```{r}
+likert_ent <- likert_ent %>%
+  mutate(across(everything(), ~ factor(.x, levels = ordre_logic, ordered = TRUE)))
+
+gglikert(likert_ent)
+```
+
+
+
+## clima general 
+
+passem a crear la variable clima general
+
+tornem a llegir les dades perque ara hem d'afegir la variable id_partit
+
+```{r}
+likert_arb <- arbitres_net %>% select(all_of(vars_likert_arb), id_partit)
+
+likert_aux <- auxiliars_net %>% select(all_of(vars_likert_aux), id_partit)
+
+likert_ent <- entrenadors_net %>% select(all_of(vars_likert_ent), id_partit)
+```
+
+
+comencem per fer un eda mes centrat de les variables de escales likert
+
+```{r}
+summary(likert_arb)
+```
+
+```{r}
+summary(likert_aux)
+```
+
+```{r}
+summary(likert_ent)
+```
+
+### alfa de cronbach
+
+l'alfa es un dels indicadors més usats per mesurar la consistència interna d'una escala, calcula la correlació mitjana entre totes les nostres variables. L'hem de fer per poder comprovar que fer els nostres indexs de manera factorial te sentit perque les variables tenen relació entre si.
+
+```{r}
+library(psych)
+
+# Per a Entrenadors
+alfa_ent <- psych::alpha(likert_ent %>% select(all_of(vars_likert_ent)))
+print(alfa_ent$total$raw_alpha)
+
+# Per a Àrbitres
+alfa_arb <- psych::alpha(likert_arb %>% select(all_of(vars_likert_arb)))
+print(alfa_arb$total$raw_alpha)
+
+# Per a Auxiliars
+alfa_aux <- psych::alpha(likert_aux %>% select(all_of(vars_likert_aux)))
+print(alfa_aux$total$raw_alpha)
+```
+
+observem valors molt bons, per a entrenadors tenim una puntuació molt alta, que ens indica que totes les preguntes estan  molt relaciondes. l'escala funciona com un bloc unitari. en els arbitres veiem que es la més baixa però segueix sent bona. Això ens suggereix que que els arbitres segurament diferencien mes entre conceptes.
+
+### missings
+
+volem mirar si els missings son aleatoris, es a dir que nomes hi ha un missing en una fila, o si falla tot.
+
+```{r}
+library(naniar)
+library(patchwork) # Per ajuntar gràfics
+
+# Gràfic de missings per a Àrbitres
+p1 <- gg_miss_var(likert_arb %>% select(all_of(vars_likert_arb))) + 
+  labs(title = "Missings Àrbitres")
+
+# Gràfic de missings per a Entrenadors
+p2 <- gg_miss_var(likert_ent %>% select(all_of(vars_likert_ent))) + 
+  labs(title = "Missings Entrenadors")
+
+p1 + p2
+```
+
+ara fem un analisi de interseccions
+
+```{r}
+# Aquest gràfic mostra quines combinacions de preguntes solen faltar alhora
+gg_miss_upset(likert_ent %>% select(all_of(vars_likert_ent)))
+```
+
+
+
+fem taules per veure missings 
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+missings_arbitres <- likert_arb %>%
+  select(all_of(vars_likert_arb)) %>% 
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "Pregunta", values_to = "Total_Missings") %>%
+  mutate(Percentatge = round((Total_Missings / nrow(likert_arb)) * 100, 2)) %>%
+  arrange(desc(Total_Missings))
+
+print(missings_arbitres)
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+missings_auxiliars <- likert_aux %>%
+  select(all_of(vars_likert_aux)) %>% 
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "Pregunta", values_to = "Total_Missings") %>%
+  mutate(Percentatge = round((Total_Missings / nrow(likert_aux)) * 100, 2)) %>%
+  arrange(desc(Total_Missings))
+
+print(missings_auxiliars)
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+missings_entrenadors <- likert_ent %>%
+  select(all_of(vars_likert_ent)) %>% 
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "Pregunta", values_to = "Total_Missings") %>%
+  mutate(Percentatge = round((Total_Missings / nrow(likert_ent)) * 100, 2)) %>%
+  arrange(desc(Total_Missings))
+
+print(missings_entrenadors)
+```
+
+
+### primer farem una aproximacio de la variable clima general amb la mitjana
+
+```{r}
+likert_arb$clima_mean <- rowMeans(likert_arb %>% select(vars_likert_arb), na.rm = TRUE) 
+head(likert_arb)
+```
+
+```{r}
+likert_aux$clima_mean <- rowMeans(likert_aux %>% select(vars_likert_aux), na.rm = TRUE)
+head(likert_aux)
+```
+
+```{r}
+likert_ent$clima_mean <- rowMeans(likert_ent %>% select(vars_likert_ent), na.rm = TRUE)
+head(likert_ent)
+```
+
+comprovem la variable creada a traves de la mitjana
+
+```{r}
+summary(likert_arb$clima_mean)
+
+library(ggplot2)
+ggplot(likert_arb, aes(x = clima_mean)) +
+  geom_histogram(bins = 20)
+```
+
+```{r}
+summary(likert_aux$clima_mean)
+
+library(ggplot2)
+ggplot(likert_aux, aes(x = clima_mean)) +
+  geom_histogram(bins = 20)
+```
+
+```{r}
+summary(likert_ent$clima_mean)
+
+library(ggplot2)
+ggplot(likert_ent, aes(x = clima_mean)) +
+  geom_histogram(bins = 20)
+```
+
+
+### justificació policòrica
+
+```{r}
+library(psych)
+library(dplyr)
+
+taula_forma <- function(dades, variables) {
+  resum <- describe(dades %>% select(all_of(variables)))
+  return(resum %>% select(n, mean, sd, skew, kurtosis))
+}
+```
+
+
+```{r}
+forma_ent <- taula_forma(likert_ent, vars_likert_ent)
+forma_arb <- taula_forma(likert_arb, vars_likert_arb)
+forma_aux <- taula_forma(likert_aux, vars_likert_aux)
+```
+
+
+```{r}
+print(forma_ent)
+print(forma_arb)
+print(forma_aux)
+```
+
+Atès que els valors d'asimetria superen en molts casos el llindar de 1 i la curtosi indica una clara manca de normalitat multivariant, l'ús de correlacions de Pearson infravaloraria la relació real entre variables. Per aquest motiu, s'ha optat per l'ús de matrius de correlació policòrica, més adequades per a dades ordinals amb distribucions asimètriques.
+
+
+### arbitres factorial
+
+```{r}
+#install.packages("corrplot")
+library(corrplot)
+
+cor_mat <- cor(likert_arb, use = "pairwise.complete.obs")
+corrplot(cor_mat)
+```
+
+#### analisi factorial
+
+mirem si te sentit fer factorial
+
+```{r}
+library(psych)
+library(tidyverse)
+
+matriu_cor <- cor(likert_arb %>% select(all_of(vars_likert_arb)), 
+                  use = "pairwise.complete.obs") # usem el pair.wise.complete.obs, perque al tenim tants missings necessitem fer neteja, aquesta funció ens ajuda
+
+KMO(matriu_cor)
+```
+
+decidim el numero de factors
+
+```{r}
+fa.parallel(matriu_cor)
+```
+
+
+
+fem l'analisi factorial
+
+```{r}
+fa_result <- fa(matriu_cor, 
+                nfactors = 1,   
+                fm = "minres",
+                rotate = "oblimin")
+```
+
+veiem els resultats
+
+```{r}
+print(fa_result$loadings)
+```
+
+creem la variable clima
+
+```{r}
+scores <- factor.scores(likert_arb %>% select(all_of(vars_likert_arb)), fa_result, method = "tenBerge")
+
+likert_arb$clima_factor <- scores$scores[,1]
+
+head(likert_arb)
+```
+
+
+#### matriu policorica
+
+```{r}
+library(psych)
+library(dplyr)
+
+dades_estudi <- likert_arb %>% 
+  select(all_of(vars_likert_arb)) %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.x))))
+```
+
+
+```{r}
+poly_out <- polychoric(dades_estudi, na.rm = TRUE, max.cat = 12) # 12 perque sino ens dona error amb 10
+```
+
+
+```{r}
+matriu_poly <- poly_out$rho
+```
+
+
+```{r}
+fa_poly <- fa(matriu_poly, nfactors = 1, fm = "minres", rotate = "oblimin")
+```
+
+
+```{r}
+scores_poly <- factor.scores(dades_estudi, fa_poly)
+likert_arb$clima_index <- scores_poly$scores[,1]
+
+head(likert_arb)
+```
+
+```{r}
+KMO(matriu_poly)
+```
+
+```{r}
+print(fa_result$loadings)
+```
+
+```{r}
+print(fa_poly$loadings)
+```
+
+> veiem que el proportion var del model on hem utilitzat la matriu policòrica és superior, el que vol dir que explica un major porcentatge de les dades.
+> podem intentar-ho amb dos factors, per veure si millora el percentatge
+
+```{r}
+fa_poly_2 <- fa(matriu_poly, nfactors = 2, fm = "minres", rotate = "oblimin")
+
+print(fa_poly_2$loadings)
+```
+
+> aquí veiem que la variancia explicada augmenta un 8%, pero quan ens fixem en els factors, no tenim una gran diferencia entre ells, hi ha càrregues creuades, es a dir que hi ha variables amb numeros alts o iguals per a tots dos factors i això no ens afavoreix, per tant ens quedarem ammb l'anàlisi d'un factor.
+
+#### estudi de comparacions
+
+```{r}
+arbitres_net$clima_mean <- likert_arb$clima_mean
+arbitres_net$clima_factor <- likert_arb$clima_factor
+arbitres_net$clima_index <- likert_arb$clima_index
+```
+
+
+##### Comparació segons rol
+
+
+```{r}
+arbitres_comp <- arbitres_net %>%
+  mutate(
+    ha_contestat = ifelse(is.na(clima_mean), 0, 1),
+    rol = case_when(
+      rol_ref == "1" ~ "mainref",
+      rol_ref == "2" ~ "auxref"
+    )
+  )
+```
+
+```{r}
+table(arbitres_comp$rol, useNA = "always")
+```
+
+
+
+
+### auxiliars factorial
+
+passem a fer el mateix analisi factorial per a auxiliars i entrenadors 
+
+```{r}
+#install.packages("corrplot")
+library(corrplot)
+
+cor_mat <- cor(likert_aux, use = "pairwise.complete.obs")
+corrplot(cor_mat)
+```
+
+#### analisi factorial
+
+mirem si te sentit fer factorial
+
+```{r}
+library(psych)
+library(tidyverse)
+
+matriu_cor <- cor(likert_aux %>% select(all_of(vars_likert_aux)), 
+                  use = "pairwise.complete.obs") 
+
+KMO(matriu_cor)
+```
+
+decidim el numero de factors
+
+```{r}
+fa.parallel(matriu_cor)
+```
+
+
+fem l'analisi factorial
+
+```{r}
+fa_result <- fa(matriu_cor, 
+                nfactors = 1, 
+                fm = "minres",
+                rotate = "oblimin")
+```
+
+veiem els resultats
+
+```{r}
+print(fa_result$loadings)
+```
+
+creem la variable clima
+
+```{r}
+scores <- factor.scores(likert_aux %>% select(all_of(vars_likert_aux)), fa_result, method = "tenBerge")
+
+likert_aux$clima_factor <- scores$scores[,1]
+
+head(likert_aux)
+```
+
+
+#### matriu policorica
+
+```{r}
+library(psych)
+library(dplyr)
+
+dades_estudi <- likert_aux %>% 
+  select(all_of(vars_likert_aux)) %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.x))))
+```
+
+
+```{r}
+poly_out <- polychoric(dades_estudi, na.rm = TRUE, max.cat = 12)
+```
+
+
+```{r}
+matriu_poly <- poly_out$rho
+```
+
+
+```{r}
+fa_poly <- fa(matriu_poly, nfactors = 1, fm = "minres", rotate = "oblimin")
+```
+
+
+```{r}
+scores_poly <- factor.scores(dades_estudi, fa_poly)
+likert_aux$clima_index <- scores_poly$scores[,1]
+
+head(likert_aux)
+```
+
+```{r}
+KMO(matriu_poly)
+```
+
+```{r}
+print(fa_result$loadings)
+```
+
+```{r}
+print(fa_poly$loadings)
+```
+
+
+```{r}
+fa_poly_2 <- fa(matriu_poly, nfactors = 2, fm = "minres", rotate = "oblimin")
+
+print(fa_poly_2$loadings)
+```
+
+
+### entrenadors factorial
+
+passem als entrenadors 
+
+```{r}
+#install.packages("corrplot")
+library(corrplot)
+
+cor_mat <- cor(likert_ent, use = "pairwise.complete.obs")
+corrplot(cor_mat)
+```
+
+
+#### analisi factorial
+
+mirem si te sentit fer factorial
+
+```{r}
+library(psych)
+library(tidyverse)
+
+matriu_cor <- cor(likert_ent %>% select(all_of(vars_likert_ent)), 
+                  use = "pairwise.complete.obs") 
+
+KMO(matriu_cor)
+```
+
+
+decidim el numero de factors
+
+```{r}
+fa.parallel(matriu_cor)
+```
+
+
+
+fem l'analisi factorial
+
+```{r}
+fa_result <- fa(matriu_cor, 
+                nfactors = 1,  
+                fm = "minres",
+                rotate = "oblimin")
+```
+
+veiem els resultats
+
+```{r}
+print(fa_result$loadings)
+```
+
+
+creem la variable clima
+
+```{r}
+scores <- factor.scores(likert_ent %>% select(all_of(vars_likert_ent)), fa_result, method = "tenBerge")
+
+likert_ent$clima_factor <- scores$scores[,1]
+
+head(likert_ent)
+```
+
+
+#### matriu policorica
+
+```{r}
+library(psych)
+library(dplyr)
+
+dades_estudi <- likert_ent %>% 
+  select(all_of(vars_likert_ent)) %>%
+  mutate(across(everything(), ~ as.numeric(as.character(.x))))
+```
+
+
+```{r}
+poly_out <- polychoric(dades_estudi, na.rm = TRUE, max.cat = 12)
+```
+
+
+```{r}
+matriu_poly <- poly_out$rho
+```
+
+
+```{r}
+fa_poly <- fa(matriu_poly, nfactors = 1, fm = "minres", rotate = "oblimin")
+```
+
+
+```{r}
+scores_poly <- factor.scores(dades_estudi, fa_poly)
+likert_ent$clima_index <- scores_poly$scores[,1]
+
+head(likert_ent)
+```
+
+```{r}
+KMO(matriu_poly)
+```
+
+```{r}
+print(fa_result$loadings)
+```
+
+```{r}
+print(fa_poly$loadings)
+```
+
+
+
+```{r}
+fa_poly_2 <- fa(matriu_poly, nfactors = 2, fm = "minres", rotate = "oblimin")
+
+print(fa_poly_2$loadings)
+```
+
+
+#### estudi de missings entrenadors
+
+com que hem vist que per a entrenadors tenim moltes menys dades, perque contesten menys, en fem un analisi mes contundent
+
+Per investigar si els entrenadors deixen de contestar quan perden (biaix per resultat) o si hi ha alguna diferencia per ser locals o visitants, hem de fer un procés de comparació.
+
+```{r}
+entrenadors_net$clima_mean <- likert_ent$clima_mean
+entrenadors_net$clima_factor <- likert_ent$clima_factor
+entrenadors_net$clima_index <- likert_ent$clima_index
+```
+
+
+##### Comparació segons resultat
+
+Primer identifiquem quins partits tenen l'enquesta buida i quins no, per poder comparar-los.
+
+
+```{r}
+# 1. Creem les variables a nivell de fila (equip propi i equip rival)
+entrenadors_comp <- entrenadors_net %>%
+  mutate(
+    ha_contestat = ifelse(is.na(clima_mean), 0, 1),
+    # Identifiquem punts segons si l'entrenador és local o visitant
+    punts_propis = case_when(
+      tipus_informador_dif == "coachlocal" ~ score_H,
+      tipus_informador_dif == "coachvisitant" ~ score_A
+    ),
+    punts_rival = case_when(
+      tipus_informador_dif == "coachlocal" ~ score_A,
+      tipus_informador_dif == "coachvisitant" ~ score_H
+    ),
+    es_victoria = punts_propis > punts_rival
+  )
+```
+
+
+```{r}
+comparativa_resultats <- entrenadors_comp %>%
+  group_by(ha_contestat) %>%
+  summarise(
+    n_enquestes = n(),
+    mitjana_punts_propis = mean(punts_propis, na.rm = TRUE),
+    mitjana_punts_rival = mean(punts_rival, na.rm = TRUE),
+    percentatge_victories = mean(es_victoria, na.rm = TRUE) * 100
+  )
+
+print(comparativa_resultats)
+```
+
+creem la variable que ens diu si lequip es el guanyador o no
+
+```{r}
+library(dplyr)
+
+entrenadors_comp <- entrenadors_comp %>%
+  mutate(resultat = case_when(
+    # Cas 1: Local guanya i l'informador és el local
+    score_H > score_A & tipus_informador_dif == "coachlocal" ~ "guanyador",
+    
+    # Cas 2: Local perd i l'informador és el local
+    score_H < score_A  & tipus_informador_dif == "coachlocal" ~ "perdedor",
+    
+    # Cas 3: Visitant guanya i l'informador és el visitant
+    score_A > score_H & tipus_informador_dif == "coachvisitant" ~ "guanyador",
+    
+    # Cas 4: Visitant perd i l'informador és el visitant
+    score_A < score_H  & tipus_informador_dif == "coachvisitant" ~ "perdedor",
+    
+    # Per seguretat: si alguna dada falta o no quadra
+    TRUE ~ NA_character_
+  ))
+
+# Comprovació ràpida
+table(entrenadors_comp$resultat, useNA = "always")
+```
+
+
+```{r}
+# Calculem la diferència de punts (propis - rival)
+entrenadors_comp$dif_punts <- entrenadors_comp$punts_propis - entrenadors_comp$punts_rival
+
+# Fem un boxplot per veure si els que NO contesten (0) tenen diferències de punts més negatives
+ggplot(entrenadors_comp, aes(x = as.factor(ha_contestat), y = dif_punts)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.7) +
+  labs(title = "Diferència de punts vs Realització de l'enquesta",
+       x = "Ha contestat (0 = No, 1 = Sí)",
+       y = "Diferència de punts")
+```
+
+un altre gràfic per veure aquesta diferència
+
+```{r}
+analisi_biaix <- entrenadors_comp %>%
+  mutate(
+    # Ha contestat si clima_mean no és NA
+    ha_contestat = !is.na(clima_mean),
+    # Diferència de punts des de la perspectiva local
+    dif_punts = dif_punts
+  )
+```
+
+
+```{r}
+ggplot(analisi_biaix, aes(x = dif_punts, fill = ha_contestat)) +
+  geom_histogram(bins = 30, position = "dodge") +
+  theme_minimal() +
+  labs(title = "Distribució de missings segons resultat del partit",
+       x = "Diferència de punts (propis - rival) ",
+       y = "Nombre d'enquestes")
+```
+
+fem taula de contingencia entre si ha contestat o no
+
+```{r}
+# Creem una taula de contingència entre si ha contestat i el resultat
+biaix_resultat <- entrenadors_comp %>%
+  mutate(ha_contestat = !is.na(clima_mean)) %>%
+  group_by(resultat, ha_contestat) %>%
+  summarise(n = n()) %>%
+  mutate(percentatge = n / sum(n) * 100)
+
+print(biaix_resultat)
+```
+
+Per saber si el fet de perdre influeix en no fer l'enquesta, farem un test de Chi-quadrat.
+
+```{r}
+dades_test <- analisi_biaix %>%
+  filter(!is.na(resultat)) 
+
+taula_contingencia <- table(dades_test$resultat, dades_test$ha_contestat)
+rownames(taula_contingencia) <- c("Guanyador", "Perdedor")
+colnames(taula_contingencia) <- c("No Contesta", "Contesta")
+
+print(taula_contingencia)
+```
+
+
+```{r}
+test_chi <- chisq.test(taula_contingencia)
+print(test_chi)
+```
+
+podem afirmar que el resultat te algun efecte sobre si es respon o no l'enquesta.
+
+
+##### comparació local visitant
+
+ara passem a analitzar si el ser local o visitant te algun efecte.
+
+```{r}
+taula_biaix_loc <- table(entrenadors_comp$tipus_informador_dif, !is.na(entrenadors_comp$clima_index))
+colnames(taula_biaix_loc) <- c("No Respost", "Respost")
+
+print(taula_biaix_loc)
+```
+
+
+```{r}
+chi_loc <- chisq.test(taula_biaix_loc)
+
+print(chi_loc)
+```
+
+
+##### comparació categories
+
+provem  per categories
+
+```{r}
+taula_biaix_loc <- table(entrenadors_comp$category, !is.na(entrenadors_comp$clima_index))
+colnames(taula_biaix_loc) <- c("No Respost", "Respost")
+
+print(taula_biaix_loc)
+```
+
+
+```{r}
+chi_loc <- chisq.test(taula_biaix_loc)
+
+print(chi_loc)
+```
+
+
+##### comparacio per genere 
+
+
+```{r}
+taula_biaix_loc <- table(entrenadors_comp$competition_gender, !is.na(entrenadors_comp$clima_index))
+colnames(taula_biaix_loc) <- c("No Respost", "Respost")
+
+print(taula_biaix_loc)
+```
+
+```{r}
+chi_loc <- chisq.test(taula_biaix_loc)
+
+print(chi_loc)
+```
+
+
+### entrenadors amb variables binaries
+
+
+```{r}
+vars_binaries_ent <- c("auxref_penalty", "auxdesk_penalty",
+                       "auxref_punctual", "crucial_against_signaled",
+                       "crucial_basket_wrong", "doubt_non_signaled",
+                       "ejection_headcoach", "ejection_player",
+                       "general_incident_other",
+                       "late_game_tech_unsport_signaled",
+                       "mainref_punctual", "mainref_penalty")
+```
+
+```{r}
+likert_ent_2 <- entrenadors_net %>% select(all_of(vars_likert_ent), all_of(vars_binaries_ent))
+```
+
+```{r}
+likert_ent_2 <- likert_ent_2 %>%
+  mutate( auxref_punctual = case_when(
+    auxref_punctual == "No" ~ 1,
+    auxref_punctual == "Sí" ~ 0 
+  )) %>%
+  mutate( mainref_punctual = case_when(
+    mainref_punctual == "No" ~ 1,
+    mainref_punctual == "Sí" ~ 0 
+  ))
+```
+
+
+```{r}
+summary(likert_ent_2 %>% select(all_of(vars_binaries_ent)))
+```
+
+
+
+```{r}
+likert_ent_2 <- likert_ent_2 %>%
+  mutate(across(all_of(vars_binaries_ent),
+                as.numeric))
+```
+
+creem l'index de incidències
+
+```{r}
+likert_ent_2$incidencies <- rowSums(
+  likert_ent_2 %>% select(all_of(vars_binaries_ent)), 
+  na.rm = TRUE
+)
+
+head(likert_ent_2,5)
+```
+
+
+
+## longitud de l'enquesta afecta a la resposta
+
+```{r}
+longitud_enquestes <- data.frame(
+  Agent = c("Àrbitres", "Auxiliars", "Entrenadors"),
+  Preguntes_Likert = c(
+    ncol(likert_arb %>% select(-id_partit, -clima_mean, -clima_factor, -clima_index)),
+    ncol(likert_aux %>% select(-id_partit, -clima_mean, -clima_factor, -clima_index)),
+    ncol(likert_ent %>% select(-id_partit, -clima_mean, -clima_factor, -clima_index))
+  ))
+
+total_partits_jugats <- n_distinct(auxiliars_net$id_partit)
+
+taxa_resposta <- data.frame(
+  Agent = c("Àrbitres", "Auxiliars", "Entrenadors"),
+  Partits_amb_resposta = c(
+    (sum(!is.na(likert_arb$clima_index)))/2,
+    sum(!is.na(likert_aux$clima_index)),
+    (sum(!is.na(likert_ent$clima_index)))/2
+  ))
+taxa_resposta$Taxa_percent <- round(taxa_resposta$Partits_amb_resposta / total_partits_jugats * 100, 1)
+
+calc_missings <- function(df, exclude_cols = c("id_partit", "clima_mean", "clima_factor", "clima_index")) {
+  df_likert <- df %>% select(-any_of(exclude_cols))
+  total_celes <- nrow(df_likert) * ncol(df_likert)
+  celes_na <- sum(is.na(df_likert))
+  return(round(celes_na / total_celes * 100, 1))
+}
+
+missings_per_agent <- data.frame(
+  Agent = c("Àrbitres", "Auxiliars", "Entrenadors"),
+  Percent_missings = c(
+    calc_missings(likert_arb),
+    calc_missings(likert_aux),
+    calc_missings(likert_ent)
+  ))
+
+relacio_longitud <- longitud_enquestes %>%
+  left_join(taxa_resposta, by = "Agent") %>%
+  left_join(missings_per_agent, by = "Agent")
+```
+
+
+```{r}
+relacio_longitud %>%
+  setNames(c("Col·lectiu",
+             "Núm. Preguntes",
+             "Partits Respostos",
+             "Taxa Resposta (%)",
+             "% Missings global"))
+```
+
+
+
+
+```{r}
+ggplot(relacio_longitud, aes(x = reorder(Agent, -Taxa_percent), y = Taxa_percent, fill = Agent)) +
+  geom_bar(stat = "identity", width = 0.6) +
+  geom_text(aes(label = paste0(Taxa_percent, "%")), vjust = -0.5, fontface = "bold") +
+  labs(title = "Taxa de Resposta per Col·lectiu",
+       subtitle = "Percentatge de partits on l'agent ha completat l'enquesta",
+       x = "Agent", y = "% Resposta") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set2") +
+  theme(legend.position = "none")
+```
+
+```{r}
+calc_na_per_row <- function(df, exclude_cols = c("id_partit", "clima_mean", "clima_factor", "clima_index")) {
+  df_likert <- df %>% select(-any_of(exclude_cols))
+  return(rowMeans(is.na(df_likert)) * 100)
+}
+
+na_per_row <- data.frame(
+  Agent = rep(c("Àrbitres", "Auxiliars", "Entrenadors"), 
+              times = c(nrow(likert_arb), nrow(likert_aux), nrow(likert_ent))),
+  Percent_NA = c(
+    calc_na_per_row(likert_arb),
+    calc_na_per_row(likert_aux),
+    calc_na_per_row(likert_ent)
+  ))
+
+# Kruskal-Wallis test
+kruskal.test(Percent_NA ~ Agent, data = na_per_row)
+```
+
+
+Existeixen diferències en el percentatge de dades mancants entre almenys dos dels col·lectius analitzats i podria existir un efecte de fatiga de resposta associat a la longitud del qüestionari
+
+
+## coeficient de correlació interclasse
+
+passem a calcular el coeficient de correlació interclasse
+
+```{r}
+#install.packages("irr")
+library(irr)
+
+comparativa_arb <- likert_arb %>%
+  filter(!is.na(clima_index)) %>%
+  group_by(id_partit) %>%
+  filter(n() >= 2) %>%
+  mutate(pos = row_number()) %>%
+  pivot_wider(id_cols = id_partit, names_from = pos, values_from = clima_index, names_prefix = "arb_")
+
+comparativa_ent <- likert_ent %>%
+  filter(!is.na(clima_index)) %>%
+  group_by(id_partit) %>%
+  filter(n() >= 2) %>% 
+  mutate(pos = row_number()) %>%
+  pivot_wider(id_cols = id_partit, names_from = pos, values_from = clima_index, names_prefix = "ent_")
+```
+
+```{r}
+# ICC per a Àrbitres
+icc_arb <- icc(comparativa_arb[, c("arb_1", "arb_2")], 
+               model = "twoway", type = "agreement", unit = "single")
+
+# ICC per a Entrenadors
+icc_ent <- icc(comparativa_ent[, c("ent_1", "ent_2")], 
+               model = "twoway", type = "agreement", unit = "single")
+
+print(icc_arb)
+print(icc_ent)
+```
+
+veiem que per als arbitres si que podem observar una concordança en les seves respostes, en canvi per als entrenadors aquesta concordança és nula, això es podria deure a molt factors. Principalment ens indica uqe per als entrenadors el clima és un concepte purament subjectiu.
+
+gràfic de dispersio per veure la relacio entre els arbitres
+
+```{r}
+ comparativa_arb_real <- arbitres_comp %>%
+  filter(!is.na(clima_index), !is.na(rol)) %>%
+  select(id_partit, clima_index, rol) %>%
+  group_by(id_partit) %>%
+  filter(n() == 2) %>% # Només partits on han contestat tots dos (parella completa)
+  pivot_wider(id_cols = id_partit, names_from = rol, values_from = clima_index)
+
+ggplot(comparativa_arb_real, aes(x = mainref, y = auxref)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  xlim(-3, 3) + ylim(-3, 3) + # Ajusta segons l'escala del teu índex
+  labs(title = "Consistència del Clima: Principal vs secundari",
+       x = "Clima percebut pel principal",
+       y = "Clima percebut pel secundari") +
+  theme_minimal()
+```
+
+```{r}
+# 1. Càlcul de la correlació de Pearson (per defecte)
+correlacio_arbitres <- cor(comparativa_arb_real$mainref, comparativa_arb_real$auxref
+                              , use = "complete.obs")
+print(correlacio_arbitres)
+
+# Correlació de Pearson amb interval de confiança
+cor_test_arbitres <- cor.test(comparativa_arb_real$mainref, 
+                               comparativa_arb_real$auxref, 
+                               method = "pearson",
+                               use = "complete.obs")
+
+print(cor_test_arbitres)
+# Extreu els valors concrets:
+cor_test_arbitres$estimate      # coeficient r
+cor_test_arbitres$conf.int[1]   # límit inferior IC 95%
+cor_test_arbitres$conf.int[2]   # límit superior IC 95%
+```
+
+
+gràfic de dispersió per comprovar si aquesta discordia entre els entrenadors es causa del resultat o no
+
+```{r}
+comparativa_ent_real <- entrenadors_comp %>%
+  filter(!is.na(clima_index), !is.na(resultat)) %>%
+  select(id_partit, clima_index, resultat) %>%
+  group_by(id_partit) %>%
+  filter(n() == 2) %>% # Només partits on han contestat tots dos (parella completa)
+  pivot_wider(id_cols = id_partit, names_from = resultat, values_from = clima_index)
+
+ggplot(comparativa_ent_real, aes(x = guanyador, y = perdedor)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  xlim(-3, 3) + ylim(-3, 3) + # Ajusta segons l'escala del teu índex
+  labs(title = "Consistència del Clima: Guanyador vs. Perdedor",
+       x = "Clima percebut pel Guanyador",
+       y = "Clima percebut pel Perdedor") +
+  theme_minimal()
+```
+
+```{r}
+# 1. Càlcul de la correlació de Pearson (per defecte)
+correlacio_entrenadors <- cor(comparativa_ent_real$guanyador, comparativa_ent_real$perdedor, use = "complete.obs")
+print(correlacio_entrenadors)
+
+# Correlació de Pearson amb interval de confiança
+cor_test_entrenadors <- cor.test(comparativa_ent_real$guanyador, 
+                               comparativa_ent_real$perdedor, 
+                               method = "pearson",
+                               use = "complete.obs")
+
+print(cor_test_entrenadors)
+# Extreu els valors concrets:
+cor_test_entrenadors$estimate      # coeficient r
+cor_test_entrenadors$conf.int[1]   # límit inferior IC 95%
+cor_test_entrenadors$conf.int[2]   # límit superior IC 95%
+```
+
+
+```{r}
+library(dplyr)
+
+# 1. Identifiquem els partits que estan per sobre de la diagonal
+partits_sobre_diagonal <- comparativa_ent_real %>%
+  filter(perdedor > guanyador)
+
+print("--- ELS 3 PARTITS SELECCIONATS PER A L'AUDITORIA ---")
+print(head(partits_sobre_diagonal))
+
+# 3. Ara anem a buscar les respostes reals que van donar aquests entrenadors 
+# a les preguntes de l'enquesta Likert per veure si té sentit
+verificacio_detallada <- entrenadors_comp %>%
+  filter(id_partit %in% partits_sobre_diagonal$id_partit) %>%
+  select(id_partit, resultat, clima_index, all_of(vars_likert_ent)) %>%
+  arrange(id_partit, desc(resultat))
+
+print("--- DETALL DE LES RESPOSTES ORIGINALS D'AQUESTS PARTITS ---")
+print(head(verificacio_detallada))
+```
+
+
+ho fem tambe per local o visitant
+
+```{r}
+comparativa_ent_real <- entrenadors_comp %>%
+  filter(!is.na(clima_index), !is.na(tipus_informador_dif)) %>%
+  select(id_partit, clima_index, tipus_informador_dif) %>%
+  group_by(id_partit) %>%
+  filter(n() == 2) %>% # Només partits on han contestat tots dos (parella completa)
+  pivot_wider(id_cols = id_partit, names_from = tipus_informador_dif, values_from = clima_index)
+
+ggplot(comparativa_ent_real, aes(x = coachlocal, y = coachvisitant)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  xlim(-3, 3) + ylim(-3, 3) + # Ajusta segons l'escala del teu índex
+  labs(title = "Consistència del Clima: local vs. visitant",
+       x = "Clima percebut pel local",
+       y = "Clima percebut pel visitant") +
+  theme_minimal()
+```
+
+```{r}
+# 1. Càlcul de la correlació de Pearson (per defecte)
+correlacio_entrenadors <- cor(comparativa_ent_real$coachlocal, comparativa_ent_real$coachvisitant, use = "complete.obs")
+print(correlacio_entrenadors)
+
+# Correlació de Pearson amb interval de confiança
+cor_test_entrenadors <- cor.test(comparativa_ent_real$coachlocal, 
+                               comparativa_ent_real$coachvisitant, 
+                               method = "pearson",
+                               use = "complete.obs")
+
+print(cor_test_entrenadors)
+# Extreu els valors concrets:
+cor_test_entrenadors$estimate      # coeficient r
+cor_test_entrenadors$conf.int[1]   # límit inferior IC 95%
+cor_test_entrenadors$conf.int[2]   # límit superior IC 95%
+```
+
+
+volem mirar si hi ha diferencia entre les lligues masculines i femenines
+
+```{r}
+# 1. Netejem les dades eliminant els buits dels entrenadors
+comparativa_genere <- entrenadors_comp %>%
+  filter(!is.na(clima_index), !is.na(competition_gender))
+
+# 2. Fem el gràfic de caixes (Boxplot) per comparar masculí vs femení
+ggplot(comparativa_genere, aes(x = competition_gender, y = clima_index, fill = competition_gender)) +
+  geom_boxplot(alpha = 0.7, width = 0.5) +
+  # Opcional: afegim geom_jitter per veure tots els partits com a punts difuminats de fons
+  geom_jitter(width = 0.15, alpha = 0.2, color = "black") +
+  labs(title = "Comparativa del Clima de Partit segons el Gènere de la Competició",
+       subtitle = "Percepció global del col·lectiu d'entrenadors",
+       x = "Gènere de la Competició",
+       y = "Índex de Clima (Factorial)") +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(legend.position = "none") 
+```
+
+anem a mirar per diferencia de punts i faltes
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# 1. Preparem les dades: calculem la diferència de punts absoluta
+# Nota: Substitueix 'score_H' i 'score_A' pels noms reals de les teves columnes de marcadors si són diferents
+dades_grafic <- entrenadors_comp %>%
+  filter(!is.na(clima_index), !is.na(score_H), !is.na(score_A)) %>%
+  mutate(diferencia_punts = abs(score_H - score_A))
+
+# 2. Creem el gràfic de dispersió amb línia de tendència
+ggplot(dades_grafic, aes(x = diferencia_punts, y = clima_index)) +
+  # Afegim els punts amb una mica de transparència (alpha) per si n'hi ha molts de superposats
+  geom_point(color = "#005088", alpha = 0.5, size = 2) +
+  # Afegim la línia de tendència lineal en vermell
+  geom_smooth(method = "lm", color = "#ef4444", se = TRUE, size = 1.2) +
+  labs(
+    title = "Relació entre la Diferència de Punts i el Clima de Partit",
+    subtitle = "Anàlisi de tendència basat en la percepció dels entrenadors",
+    x = "Diferència Absoluta de Punts (Marcador)",
+    y = "Índex de Clima (Factorial)"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(entrenadors_comp, aes(x = dif_punts, y = clima_index)) +
+  # Una línia vertical a 0 que separa els que perden (esquerra) dels que guanyen (dreta)
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", size = 0.8) +
+  # Els punts amb transparència
+  geom_point(color = "#11caa0", alpha = 0.4, size = 2) +
+  # La línia de tendència lineal en vermell
+  geom_smooth(method = "lm", color = "#005088", se = TRUE, size = 1.2) +
+  labs(
+    title = "Efecte del Resultat en la Percepció del Clima",
+    subtitle = "Valors negatius a l'eix X = Derrota | Valors positius = Victòria",
+    x = "Marge de punts de l'equip (Punts a favor - Punts en contra)",
+    y = "Índex de Clima Percebut (Factorial)"
+  ) +
+  theme_minimal()
+```
+
+
+
+ara per a les faltes
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# 1. Preparem les dades: calculem la diferència de punts absoluta
+# Nota: Substitueix 'score_H' i 'score_A' pels noms reals de les teves columnes de marcadors si són diferents
+dades_grafic <- entrenadors_comp %>%
+  filter(!is.na(clima_index), !is.na(fouls_H), !is.na(fouls_A)) %>%
+  mutate(diferencia_faltes = abs(fouls_H - fouls_A))
+
+# 2. Creem el gràfic de dispersió amb línia de tendència
+ggplot(dades_grafic, aes(x = diferencia_faltes, y = clima_index)) +
+  # Afegim els punts amb una mica de transparència (alpha) per si n'hi ha molts de superposats
+  geom_point(color = "#005088", alpha = 0.5, size = 2) +
+  # Afegim la línia de tendència lineal en vermell
+  geom_smooth(method = "lm", color = "#ef4444", se = TRUE, size = 1.2) +
+  labs(
+    title = "Relació entre la Diferència de faltes i el Clima de Partit",
+    subtitle = "Anàlisi de tendència basat en la percepció dels entrenadors",
+    x = "Diferència Absoluta de faltes",
+    y = "Índex de Clima (Factorial)"
+  ) +
+  theme_minimal()
+```
+ara ho mirem segons si la diferencia de faltes es a favor o en contra
+
+```{r}
+entrenadors_comp <- entrenadors_comp %>%
+  filter(!is.na(clima_index), !is.na(fouls_H), !is.na(fouls_A)) %>%
+  mutate(
+    # Calculem el marge de les faltes segons si l'entrenador és Local o Visitant
+    dif_fouls = ifelse(tipus_informador_dif == "coachlocal", 
+                         fouls_A - fouls_H, 
+                         fouls_H - fouls_A)
+  )
+
+ggplot(entrenadors_comp, aes(x = dif_fouls, y = clima_index)) +
+  # Una línia vertical a 0 que separa els que perden (esquerra) dels que guanyen (dreta)
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", size = 0.8) +
+  # Els punts amb transparència
+  geom_point(color = "#11caa0", alpha = 0.4, size = 2) +
+  # La línia de tendència lineal en vermell
+  geom_smooth(method = "lm", color = "#005088", se = TRUE, size = 1.2) +
+  labs(
+    title = "Efecte de les faltes en la Percepció del Clima",
+    subtitle = "Valors negatius a l'eix X = perjudicat | Valors positius = afavorit",
+    x = "diferencia de faltes (faltes a favor - faltes en contra)",
+    y = "Índex de Clima Percebut (Factorial)"
+  ) +
+  theme_minimal()
+```
+
+volem mirar quins son els coeficients de la pendent tant per les faltes com per als punts 
+
+```{r}
+# Model 1: Efecte del Marge de Punts sobre el Clima Index
+model_punts <- lm(clima_index ~ dif_punts, data = entrenadors_comp)
+summary(model_punts)
+
+# Model 2: Efecte de la Diferència de Faltes sobre el Clima Index
+model_faltes <- lm(clima_index ~ dif_fouls, data = entrenadors_comp)
+summary(model_faltes)
+```
+
+
+
+
+anem a mirar per la diferencia del moment en quan piten les faltes 
+
+> primer enfocament: si es piten mes faltes als ultims 10 min de partit
+
+```{r}
+library(dplyr)
+
+# 1. Agrupem les teves columnes de 5 minuts en dos grans blocs cronològics:
+# Bloc Inicial (Minuts 0-30) i Bloc Final / Calent (Minuts 30-40)
+# Calculem la diferència de faltes (Rival - Pròpies) en cada bloc des de la perspectiva de l'entrenador
+
+entrenadors_cronologia <- entrenadors_comp %>%
+  mutate(
+    fouls_propies_0_30 = case_when(tipus_informador_dif == "coachlocal" ~ (tfoul_H_5 + 
+      tfoul_H_10 +  tfoul_H_15 + tfoul_H_20 + tfoul_H_25 + tfoul_H_30), 
+      tipus_informador_dif == "coachvisitant" ~ (tfoul_A_5 + tfoul_A_10 + tfoul_A_15 + 
+      tfoul_A_20 + tfoul_A_25 + tfoul_A_30)),
+    
+    fouls_rival_0_30 = case_when(tipus_informador_dif == "coachvisitant" ~ ( 
+      tfoul_H_5 + tfoul_H_10 + tfoul_H_15 + tfoul_H_20 + tfoul_H_25 + tfoul_H_30), 
+      tipus_informador_dif == "coachlocal" ~ (tfoul_A_5 + tfoul_A_10 + 
+      tfoul_A_15 + tfoul_A_20 + tfoul_A_25 + tfoul_A_30)), 
+    
+    fouls_propies_30_40 = case_when(tipus_informador_dif == "coachlocal" ~ (tfoul_H_35 + 
+      tfoul_H_40), tipus_informador_dif == "coachvisitant" ~ (tfoul_A_35 + tfoul_A_40)),
+    
+    fouls_rival_30_40 = case_when(tipus_informador_dif == "coachlocal" ~ (tfoul_A_35 + 
+      tfoul_A_40), tipus_informador_dif == "coachvisitant" ~ (tfoul_H_35 + tfoul_H_40)),
+    
+    # Creem els marges (positiu = afavorit, negatiu = perjudicat)
+    dif_fouls_inicial = fouls_rival_0_30 - fouls_propies_0_30,
+    dif_fouls_final   = fouls_rival_30_40 - fouls_propies_30_40
+  )
+```
+
+
+```{r}
+# 2. Executem la Regressió Lineal Múltiple
+model_cronologic <- lm(clima_index ~ dif_fouls_inicial + dif_fouls_final, data = entrenadors_cronologia)
+summary(model_cronologic)
+```
+
+```{r}
+library(ggplot2)
+library(broom)
+
+# 1. Convertim el summary del model en una taula neta de dades
+taula_coeficients <- tidy(model_cronologic, conf.int = TRUE) %>% 
+  filter(term != "(Intercept)") # Excloem l'intercept per avaluar només les faltes
+
+# 2. Dibuixem els punts de l'estimació amb els seus intervals d'error
+ggplot(taula_coeficients, aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "#EF4444", linewidth = 0.8) + # Línia de zero efecte
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.1, color = "#005088", linewidth = 0.8) +
+  geom_point(color = "#005088", size = 3) +
+  
+  scale_y_discrete(labels = c(
+    "dif_fouls_final" = "Tram Final (30'- 40')",
+    "dif_fouls_inicial" = "Tram Inicial (0'- 30')"
+  )) +
+  labs(
+    title = "Impacte dels Trams Temporals sobre el Clima de Partit",
+    subtitle = "Coeficients de regressió lineal i els seus intervals de confiança (95%)",
+    x = "Estimació de l'Efecte",
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", color = "#005088", size = 13),
+    axis.text.y = element_text(face = "bold", size = 11, color = "#1e293b"),
+    panel.grid.minor = element_blank()
+  )
+```
+
+
+> segon enfocament: en els ultims 5 minuts de quarts, es piten mes faltes 
+
+```{r}
+entrenadors_cronologia_2 <- entrenadors_comp %>%
+  mutate(
+    fouls_propies_primers_5 = case_when(tipus_informador_dif == "coachlocal" ~ (tfoul_H_5 + 
+        tfoul_H_15 + tfoul_H_25 + tfoul_H_35), 
+      tipus_informador_dif == "coachvisitant" ~ (tfoul_A_5 + tfoul_A_15 + tfoul_A_25 + 
+        tfoul_A_35)),
+    
+    fouls_rival_primers_5 = case_when(tipus_informador_dif == "coachvisitant" ~ (tfoul_H_5 + 
+        tfoul_H_15 + tfoul_H_25 + tfoul_H_35), 
+      tipus_informador_dif == "coachlocal" ~ (tfoul_A_5 + tfoul_A_15 + tfoul_A_25 + 
+        tfoul_A_35)), 
+    
+    fouls_propies_ultims_5 = case_when(tipus_informador_dif == "coachlocal" ~ (tfoul_H_10 + tfoul_H_20 + tfoul_H_30 + tfoul_H_40), tipus_informador_dif == "coachvisitant" ~ (tfoul_A_10 + tfoul_A_20 + tfoul_A_30 + tfoul_A_40)),
+    
+    fouls_rival_ultims_5 = case_when(tipus_informador_dif == "coachlocal" ~ (tfoul_A_10 + tfoul_A_20 + tfoul_A_30 + tfoul_A_40), tipus_informador_dif == "coachvisitant" ~ (tfoul_H_10 + tfoul_H_20 + tfoul_H_30 + tfoul_H_40)),
+    
+    # Creem els marges (positiu = afavorit, negatiu = perjudicat)
+    dif_fouls_inicial = fouls_rival_primers_5 - fouls_propies_primers_5,
+    dif_fouls_final   = fouls_rival_ultims_5 - fouls_propies_ultims_5
+  )
+```
+
+
+```{r}
+# 2. Executem la Regressió Lineal Múltiple
+model_cronologic_2 <- lm(clima_index ~ dif_fouls_inicial + dif_fouls_final, data = entrenadors_cronologia_2)
+summary(model_cronologic_2)
+```
+
+```{r}
+library(ggplot2)
+library(ggeffects)
+
+# 1. Calculem els efectes marginals predits pel model
+# Fixem la diferència final com a eix X i mirem l'efecte segons tres valors típics de la inicial
+efectes_clima <- ggpredict(model_cronologic_2, terms = c("dif_fouls_final", "dif_fouls_inicial [-4, 0, 4]"))
+
+# 2. Dibuixem el gràfic de línies de tendència
+ggplot(efectes_clima, aes(x = x, y = predicted, color = group, group = group)) +
+  geom_line(linewidth = 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.15, color = NA) +
+  
+  labs(
+    title = "Efecte Cronològic de la Diferència de Faltes sobre el Clima",
+    subtitle = "Valors predits pel model amb intervals de confiança del 95%",
+    x = "Diferència de Faltes al Tram Final de cada periode (Minut 5 al 10)",
+    y = "Índex de Clima Predit (Valoració Entrenador)",
+    color = "Dif. Inicial (0-30 min)",
+    fill = "Dif. Inicial (0-30 min)"
+  ) +
+  scale_color_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", color = "#005088", size = 13),
+    legend.position = "bottom"
+  )
+```
+
+
+```{r}
+library(ggplot2)
+library(broom)
+
+# 1. Convertim el summary del model en una taula neta de dades
+taula_coeficients <- tidy(model_cronologic_2, conf.int = TRUE) %>% 
+  filter(term != "(Intercept)") # Excloem l'intercept per avaluar només les faltes
+
+# 2. Dibuixem els punts de l'estimació amb els seus intervals d'error
+ggplot(taula_coeficients, aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "#EF4444", linewidth = 0.8) + # Línia de zero efecte
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.1, color = "#005088", linewidth = 0.8) +
+  geom_point(color = "#005088", size = 3) +
+  
+  scale_y_discrete(labels = c(
+    "dif_fouls_final" = "Tram Final del periode (5'- 10')",
+    "dif_fouls_inicial" = "Tram Inicial del periode (0'- 5')"
+  )) +
+  labs(
+    title = "Impacte dels Trams Temporals sobre el Clima de Partit",
+    subtitle = "Coeficients de regressió lineal i els seus intervals de confiança (95%)",
+    x = "Estimació de l'Efecte",
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", color = "#005088", size = 13),
+    axis.text.y = element_text(face = "bold", size = 11, color = "#1e293b"),
+    panel.grid.minor = element_blank()
+  )
+```
+
+
+
+```{r}
+# Gràfic clàssic per veure si els residus es distribueixen de forma aleatòria al voltant del zero
+plot(model_cronologic_2, which = 1, col = "#005088", caption = "Diagnòstic: Residus vs Valors Predits")
+```
+
+
+
+
+# distancia de mahalanobis
+
+```{r}
+# Funció per detectar outliers multivariants
+detectar_outliers <- library(psych)
+
+# 1. Preparem les dades (només les numèriques de l'enquesta)
+dades_m <- likert_ent %>% 
+  select(all_of(vars_likert_ent)) %>% 
+  na.omit() # Mahalanobis requereix no tenir missings en aquestes files
+
+# 2. Calculem les distàncies
+# 'outlier' calcula la distància de Mahalanobis i ens dóna el p-valor
+distancies <- outlier(dades_m, plot = TRUE)
+
+# 3. Identifiquem quins són casos crítics (p < 0.001)
+# Fem servir el llindar de la Chi-quadrat amb els graus de llibertat = núm de variables
+llindar <- qchisq(1 - 0.001, df = ncol(dades_m))
+outliers_critics <- dades_m[distancies > llindar, ]
+
+print(paste("S'han detectat", nrow(outliers_critics), "outliers multivariants."))
+```
+
+es decideix no fer cas d'aquest test ja que assumeix normalitat i les nostes dades no compleixen aquest supòsit.
+
+
+# BASE FINAL 
+
+
+```{r}
+auxiliars_net$clima_mean <- likert_aux$clima_mean
+auxiliars_net$clima_factor <- likert_aux$clima_factor
+auxiliars_net$clima_index <- likert_aux$clima_index
+
+arbitres_net$clima_mean <- likert_arb$clima_mean
+arbitres_net$clima_factor <- likert_arb$clima_factor
+arbitres_net$clima_index <- likert_arb$clima_index
+
+entrenadors_net$incidencies <- likert_ent_2$incidencies
+```
+
+```{r}
+arb <- arbitres_net %>% select(all_of(comunes), clima_mean, clima_factor, clima_index)
+ent <- entrenadors_net %>% select(all_of(comunes), clima_mean, clima_factor, clima_index, incidencies)
+aux <- auxiliars_net %>% select(all_of(comunes), clima_mean, clima_factor, clima_index)
+```
+
+```{r}
+base_final <- bind_rows(arb,ent,aux)
+```
+
+```{r}
+dades <- base_final %>% arrange(id_partit)
+```
+
+```{r}
+library(writexl)
+
+# Exportar la base de dades a un fitxer Excel
+write_xlsx(dades, "Base_Dades_TFG_Long.xlsx")
+```
+
+## control de qualitat de la mostra
+
+taula resum per veure qunts partits tenim sencers
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(ggplot2)
+
+# 1. Definim l'univers de partits (tots els que existeixen a la base de dades)
+univers_partits <- dades %>%
+  distinct(id_partit) %>%
+  nrow()
+
+# 2. Creem un resum per partit del que ha passat realment
+resum_participacio <- dades %>%
+  group_by(id_partit) %>%
+  summarise(
+    n_total = sum(!is.na(clima_index)),
+    n_arb = sum(nom_enquesta == "Àrbitre" & !is.na(clima_index)),
+    n_ent = sum(nom_enquesta == "Entrenador/a" & !is.na(clima_index)),
+    n_aux = sum(nom_enquesta == "Auxiliar de Taula" & !is.na(clima_index)),
+    .groups = "drop"
+  )
+
+# 3. Calculem els partits amb ZERO respostes
+partits_zero <- univers_partits - nrow(resum_participacio %>% filter(n_total > 0))
+
+# 4. Creem la distribució d'informadors incloent els de zero
+distribucio_total <- resum_participacio %>%
+  count(n_total, name = "n_partits") %>%
+  bind_rows(data.frame(n_total = 0, n_partits = partits_zero)) %>%
+  arrange(n_total)
+
+# 5. Taula Resum de Taxa de Resposta (Més neta)
+taxa_resum <- data.frame(
+  Agent = c("Àrbitres", "Entrenadors", "Auxiliars"),
+  Esperats_per_partit = c(2, 2, 1),
+  Total_Respostes = c(sum(resum_participacio$n_arb), 
+                     sum(resum_participacio$n_ent), 
+                     sum(resum_participacio$n_aux))
+) %>%
+  mutate(Total_Esperats = Esperats_per_partit * univers_partits,
+         Taxa_Global = round(Total_Respostes / Total_Esperats * 100, 1))
+
+colnames(taxa_resum) <- c(
+  "Agent",
+  "Esperats/Partit",
+  "Respostes Reals",
+  "Total teòric",
+  "Taxa Resposta %"
+)
+
+taxa_resum
+```
+
+
+```{r}
+ggplot(distribucio_total, aes(x = as.factor(n_total), y = n_partits)) +
+  geom_col(fill = ifelse(distribucio_total$n_total == 0, "#e74c3c", "#3498db"), alpha = 0.8) +
+  geom_text(aes(label = n_partits), vjust = -0.5, size = 4) +
+  labs(title = "Distribució de respostes per partit",
+       subtitle = paste("Total partits analitzats:", univers_partits, "| En vermell: Partits sense cap resposta"),
+       x = "Nombre d'informadors que han respost",
+       y = "Nombre de partits") +
+  theme_minimal()
+```
+
+> hi ha 6 partits que no tenen cap resposta a l'enquesta.
+
+
+## mirem agrupacions
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+# 1. Creem indicadors binaris a nivell de partit (1 = Ha respost, 0 = No ha respost)
+# Ho fem comptant quantes files reals tenim de cada agent per a cada id_partit
+
+patro_arbitres <- arbitres_net %>%
+  group_by(id_partit) %>%
+  summarise(n_arb = sum(!is.na(clima_index)), .groups = "drop") %>%
+  mutate(Arbitres = case_when(
+    n_arb == 2 ~ "2 Àrbitres",
+    n_arb == 1 ~ "1 Àrbitre",
+    TRUE ~ "Sense Àrbitres"
+  ))
+
+patro_entrenadors <- entrenadors_net %>%
+  group_by(id_partit) %>%
+  summarise(n_ent = sum(!is.na(clima_index)), .groups = "drop") %>%
+  mutate(Entrenadors = case_when(
+    n_ent == 2 ~ "2 Entrenadors",
+    n_ent == 1 ~ "1 Entrenador",
+    TRUE ~ "Sense Entrenadors"
+  ))
+
+patro_auxiliars <- auxiliars_net %>%
+  group_by(id_partit) %>%
+  summarise(n_aux = sum(!is.na(clima_index)), .groups = "drop") %>%
+  mutate(Auxiliars = case_when(
+    n_aux == 1 ~ "Auxiliar Taula",
+    TRUE ~ "Sense Auxiliar"
+  ))
+
+# 2. Unim tots els patrons utilitzant l'univers total de partits (els 317 partits comuns)
+univers_partits_id <- data.frame(id_partit = comuns)
+
+matriu_patrons <- univers_partits_id %>%
+  left_join(patro_arbitres, by = "id_partit") %>%
+  left_join(patro_entrenadors, by = "id_partit") %>%
+  left_join(patro_auxiliars, by = "id_partit") %>%
+  # Si algun partit no apareixia, el marquem com a absent de forma segura
+  mutate(
+    Arbitres = ifelse(is.na(Arbitres), "Sense Àrbitres", Arbitres),
+    Entrenadors = ifelse(is.na(Entrenadors), "Sense Entrenadors", Entrenadors),
+    Auxiliars = ifelse(is.na(Auxiliars), "Sense Auxiliar", Auxiliars)
+  )
+
+# 3. Creem la cadena de text amb la combinació neta d'informants
+taula_combinacions <- matriu_patrons %>%
+  # Ajuntem les etiquetes en una sola columna explicativa
+  unite("Combinacio_Real", Arbitres, Entrenadors, Auxiliars, sep = " + ") %>%
+  # Comptem les freqüències absolutes de cada patró d'atrició
+  count(Combinacio_Real, sort = TRUE) %>%
+  # Calculem el percentatge exacte sobre el total de la teva mostra (317 partits)
+  mutate(Percentatge = round((n / 317) * 100, 1))
+
+# 4. Mostrem el resultat definitiu per als teus tutors
+print(taula_combinacions)
+```
+
+
+```{r}
+library(ggplot2)
+library(ggpubr)
+
+# Creem el gràfic gràfic de globus a partir de la teva nova taula de combinacions
+grafic_patrons <- ggballoonplot(
+  taula_combinacions, 
+  x = "Combinacio_Real", 
+  y = "n", # Freqüència absoluta
+  size = "Percentatge", 
+  fill = "Percentatge"
+) +
+  scale_fill_gradient(low = "#FC8D62", high = "#005088") +
+  labs(
+    title = "Anàlisi de Patrons de Resposta Incompleta",
+    subtitle = "Combinacions exactes de participació multi-informant (N = 317 partits)",
+    x = "Combinació d'Agents amb enquesta completada",
+    y = "Nombre de Partits"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 9), # Text girat elegant
+    aspect.ratio = 0.5, # <--- El truc per fer-lo apaïsat i compacte a la diapo
+    panel.grid.major = element_line(color = "#e2e8f0", linewidth = 0.3)
+  )
+
+print(grafic_patrons)
+```
+
+mirem de fer el mateix de agrupacions pero enlloc de fer-ho per als 5 individus, ho fem per a 3 agents
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggpubr)
+
+# 1. Calculem si per a cada partit HA RESPONT algun membre de cada col·lectiu (SÍ/NO)
+patro_reduit <- dades %>%
+  group_by(id_partit) %>%
+  summarise(
+    # Si la suma de respostes amb dades de l'agent en aquell partit és > 0, el col·lectiu ha participat
+    has_arb = any(nom_enquesta == "Àrbitre" & !is.na(clima_index)),
+    has_ent = any(nom_enquesta == "Entrenador/a" & !is.na(clima_index)),
+    has_aux = any(nom_enquesta == "Auxiliar de Taula" & !is.na(clima_index)),
+    .groups = "drop"
+  )
+
+# 2. Creem les etiquetes textuals compactes que et demanen els teus tutors
+matriu_combinacions_3 <- patro_reduit %>%
+  mutate(
+    Etiqueta = case_when(
+      has_arb & has_ent & has_aux   ~ "arb-aux-ent",
+      has_arb & has_ent & !has_aux  ~ "ent-arb",
+      has_arb & !has_ent & has_aux  ~ "arb-aux",
+      !has_arb & has_ent & has_aux  ~ "ent-aux",
+      has_arb & !has_ent & !has_aux ~ "arb",
+      !has_arb & has_ent & !has_aux ~ "ent",
+      !has_arb & !has_ent & has_aux ~ "aux",
+      !has_arb & !has_ent & !has_aux ~ "ningu"
+    )
+  )
+
+# 3. Assegurem que l'univers total de 317 partits estigui complet i comptem
+univers_id <- data.frame(id_partit = comuns)
+
+taula_8_comb <- univers_id %>%
+  left_join(matriu_combinacions_3, by = "id_partit") %>%
+  # Per si un cas algun partit del merge total hagués quedat totalment buit
+  mutate(Etiqueta = ifelse(is.na(Etiqueta), "ningu", Etiqueta)) %>%
+  count(Etiqueta, name = "Nombre_Partits") %>%
+  # Calculem el percentatge real sobre els teus 317 partits totals
+  mutate(Percentatge = round((Nombre_Partits / 317) * 100, 1))
+
+# Forcem que apareguin les 8 categories teòriques, fins i tot si alguna té 0 partits
+totes_les_opcions <- data.frame(Etiqueta = c("arb-aux-ent", "ent-arb", "arb-aux", "ent-aux", "arb", "ent", "aux", "ningu"))
+taula_8_comb <- totes_les_opcions %>%
+  left_join(taula_8_comb, by = "Etiqueta") %>%
+  mutate(
+    Nombre_Partits = ifelse(is.na(Nombre_Partits), 0, Nombre_Partits),
+    Percentatge = ifelse(is.na(Percentatge), 0, Percentatge)
+  ) %>%
+  arrange(desc(Nombre_Partits))
+
+print(taula_8_comb)
+```
+
+```{r}
+# Creem el gràfic amb bombolles maximitzades i disseny compacte
+grafic_8_comb_gran <- ggballoonplot(
+  taula_8_comb, 
+  x = "Etiqueta", 
+  y = "Nombre_Partits", 
+  size = "Percentatge",          
+  fill = "#85C1E9",              
+  color = "#005088"              
+) +
+  # 1. AMPLIEM LA MIDA DE LES BOMBOLLES: El rang c(5, 25) les farà ben visibles
+  scale_size_continuous(range = c(5, 25)) +
+  
+  labs(
+    title = "Anàlisi de Patrons",,
+    x = "Combinació de col·lectius participants",
+    y = "Nombre de partits registrats",
+    size = "Percentatge (%)" # Nom professional per a la llegenda de mides
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", color = "#005088", size = 14),
+    plot.subtitle = element_text(face = "italic", color = "#64748B", size = 10),
+    axis.text.x = element_text(angle = 0, face = "bold", size = 10, color = "#1e293b"),
+    axis.text.y = element_text(size = 10),
+    
+    # 2. COMPRIMIM L'ASPECTE: Evita que el gràfic es vegi buit o separat dels eixos
+    aspect.ratio = 0.45, 
+    
+    panel.grid.major = element_line(color = "#e2e8f0", linewidth = 0.4), # Línies una mica més definides
+    legend.position = "right"     
+  )
+
+print(grafic_8_comb_gran)
+```
+
+## anàlisi variables clima
+
+```{r, echo=FALSE}
+library(ggplot2)
+
+ggplot(dades, aes(x = nom_enquesta, y = clima_mean, fill = nom_enquesta)) +
+  geom_boxplot(outlier.color = "red", alpha = 0.6) +
+  geom_jitter(width = 0.2, alpha = 0.2) + # Per veure la densitat de respostes
+  labs(title = "Distribució de la Percepció del Clima per Col·lectiu",
+       subtitle = "N = Total de respostes analitzades",
+       x = "Agent", y = "Índex de Clima (Z-score)") +
+  theme_minimal()
+```
+
+Veiem clarament com les puntuacions estan comprimides a la part alta. Això ens confirma la presència d'asimetria negativa. Si ens quedessim només amb aquests resultats, semblaria que tots els partits són excel·lents i seria difícil diferneciar entre partits on el clima ha estat bo i partits on el clima ha estat molt bo
+
+
+```{r, echo=FALSE}
+library(ggplot2)
+
+ggplot(dades, aes(x = nom_enquesta, y = clima_index, fill = nom_enquesta)) +
+  geom_boxplot(outlier.color = "red", alpha = 0.6) +
+  geom_jitter(width = 0.2, alpha = 0.2) + # Per veure la densitat de respostes
+  labs(title = "Distribució de la Percepció del Clima per Col·lectiu",
+       subtitle = "N = Total de respostes analitzades",
+       x = "Agent", y = "Índex de Clima (Z-score)") +
+  theme_minimal()
+```
+
+En centrar les dades en el 0 (que simularia la mitjana) mitjançant un anàlisi factorial,  aquesta escala ens permet estirar les diferències i d'aquesta manera ara es podría observar qui està realment per sobre o per sota de l'anomenada "normalitat" d'aquell colectiu.
+
+Es pot afirmar que en el col·lectiu dels entrenadors, són els que tenen un major rang interquartílic (les caixes més grans i per tant opinions que difereixen més les unes de les altres), i les cues més llargues cap a baix.
+
+Durant tot l'estudi s'ha pogut observar que els entrenadors son el col·lectiu amb menys conscens, mentre que els àrbitres i auxiliars son més homogenis. 
+
+## normalitat variable clima
+
+hem de comprovar que la nova variable compleixi normalitat per a poder fer més endevant el model
+
+```{r}
+shapiro.test(dades$clima_index)
+qqnorm(dades$clima_index)
+```
+
+com podiem esperar no compleix el suposit de normalitat, per tant haurem d'usar models no paramètrics
+
+## clustering
+
+per fer el clustering el farem senzill i agafarem algunes variables que considerem clau
+
+```{r}
+partits <- dades %>%
+  group_by(id_partit) %>%
+  summarise(
+    clima_mitjana = mean(clima_index, na.rm = TRUE),
+    clima_sd = sd(clima_index, na.rm = TRUE),
+    fouls_A = first(fouls_A),
+    fouls_H = first(fouls_H),
+    score_diff = first(abs(score_H - score_A))
+  )
+
+cluster_prepare <- partits %>%
+  na.omit() %>%
+  # Passem l'id_partit a row names perquè R sàpiga quin partit és cada fila
+  # però no el faci servir per calcular distàncies
+  column_to_rownames("id_partit")
+```
+
+```{r}
+cluster_data <- na.omit(cluster_prepare)
+
+cluster_scaled <- scale(cluster_data)
+```
+
+```{r}
+library(factoextra)
+
+fviz_nbclust(cluster_scaled,
+             kmeans,
+             method = "wss")
+```
+
+S'ha aplicat el mètode del colze (Elbow Method) per determinar el nombre òptim de clústers. Tot i que s'observa un canvi de pendent significatiu en $k=2$, s'ha optat per una solució de $k=3$ clústers. Aquesta decisió permet una major riquesa en la interpretació dels perfils de partit (per exemple: satisfactori, neutre i conflictiu) sense perdre l'estabilitat estadística del model.
+
+```{r}
+set.seed(123)
+
+k3 <- kmeans(cluster_scaled,
+             centers = 3,
+             nstart = 25)
+```
+
+```{r}
+cluster_data$cluster <- factor(k3$cluster)
+```
+
+```{r}
+fviz_cluster(k3,
+             data = cluster_scaled)
+```
+
+
+```{r}
+resum_clusters <- cluster_data %>%
+  group_by(cluster) %>%
+  summarise(
+    n_partits = n(),
+    clima_mitjà = mean(clima_mitjana, na.rm = TRUE),
+    desacord_mitjà = mean(clima_sd, na.rm = TRUE),
+    faltes_local = mean(fouls_H, na.rm = TRUE),
+    faltes_visitant = mean(fouls_A, na.rm = TRUE),
+    diferència_marcador = mean(score_diff, na.rm = TRUE)
+  )
+
+print(resum_clusters)
+```
+
+```{r}
+kable(resum_clusters)
+```
+
+
+```{r}
+millor <- partits[which.max(partits$clima_mitjana), ]
+print(millor)
+
+pitjor <- partits[which.min(partits$clima_mitjana), ]
+print(pitjor)
+```
+
+
+comprovació del clustering, index de hopkings per veure si es correcte dur-lo a terme
+
+```{r}
+#install.packages("clustertend")
+library(clustertend)
+
+# Fixem una llavor perquè el càlcul de Hopkins es basa en punts aleatoris de la mostra
+set.seed(123)
+
+# Calculem l'índex directe
+# n és el nombre de punts aleatoris a testejar (es recomana aproximadament el 10% o el 20% de la mostra)
+res_hopkins <- hopkins(cluster_scaled, n = 30)
+
+# Mostrem el valor de l'índex de Hopkins clàssic (on proper a 1 = hi ha clústers)
+print(1 - res_hopkins$H)
+```
+
+```{r}
+# install.packages("hopkins")
+library(hopkins)
+
+set.seed(123)
+
+# En aquest paquet la funció es diu literalment hopkins() i ja et dona el valor clàssic directe
+valor_hopkins <- hopkins(cluster_scaled, m = 50)
+
+print(valor_hopkins)
+```
